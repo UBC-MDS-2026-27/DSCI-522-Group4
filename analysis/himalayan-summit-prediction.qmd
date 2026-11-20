@@ -1,0 +1,40 @@
+---
+title: "Predicting Summit Success in the Nepal Himalaya from Pre-Expedition Information"
+author: "Rohan Chakkadath, Laith Saeed, Evan Pai, Harshil Sharma"
+format: html
+jupyter: python3
+---
+
+## Summary
+
+## Introduction
+
+## Methods
+
+### Data
+
+```{python}
+import os
+import urllib.request
+
+# Source: https://github.com/rfordatascience/tidytuesday/tree/main/data/2020/2020-09-22
+BASE_URL = (
+    "https://raw.githubusercontent.com/rfordatascience/tidytuesday/"
+    "main/data/2020/2020-09-22/"
+)
+RAW_DIR = "../data/raw"
+os.makedirs(RAW_DIR, exist_ok=True)
+
+for name in ["members", "expeditions", "peaks"]:
+    urllib.request.urlretrieve(f"{BASE_URL}{name}.csv", f"{RAW_DIR}/{name}.csv")
+```
+
+### Exploratory data analysis
+
+### Modelling
+
+## Results
+
+## Discussion
+
+## References
