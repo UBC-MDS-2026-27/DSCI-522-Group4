@@ -15,6 +15,8 @@ jupyter: python3
 
 ### Data
 
+We used the Himalayan Database, a record of mountaineering expeditions in the Nepal Himalaya compiled by Elizabeth Hawley and Richard Salisbury (Hawley and Salisbury 2020), in the version distributed through the TidyTuesday project (TidyTuesday 2020). It consists of three linked tables: one row per expedition member, one row per expedition, and one row per peak. The code below downloads all three tables from the TidyTuesday repository and saves unmodified copies before any processing.
+
 ```{python}
 import os
 import urllib.request
@@ -30,6 +32,10 @@ os.makedirs(RAW_DIR, exist_ok=True)
 for name in ["members", "expeditions", "peaks"]:
     urllib.request.urlretrieve(f"{BASE_URL}{name}.csv", f"{RAW_DIR}/{name}.csv")
 ```
+
+Each observation in our analysis is one expedition member, and the target is whether that member reached the summit. We joined each member to their expedition's team size, number of hired staff and whether the expedition used supplemental oxygen, and to the height of the peak attempted. We kept only information that would be known before the climb begins. We removed every variable recorded during or after the expedition: the highest point the member reached, whether they died or were injured, and the cause and altitude of any death or injury. We also removed the member-level indicator of oxygen use, because a climber who turns back early never reaches the altitude where oxygen is used, so this variable partly records the outcome. We used the expedition-level indicator instead, as an approximation of planned oxygen use.
+
+We restricted the data to expeditions from 1990 onward, to focus on the modern era of commercial climbing, and removed one record with an unknown season. The final data set contains 59,904 member records from 8,420 expeditions on 325 peaks.
 
 ```{python}
 import pandas as pd
@@ -75,6 +81,9 @@ PROCESSED_DIR = "../data/processed"
 os.makedirs(PROCESSED_DIR, exist_ok=True)
 himalaya.to_csv(f"{PROCESSED_DIR}/himalaya_clean.csv", index=False)
 ```
+
+Members of the same expedition share a team, a route, weather and a leader, so their outcomes are strongly related. If members of one expedition appeared in both the training and test sets, the model could partly memorise expedition-level conditions, and its test performance would overstate how well it predicts for a new expedition. We therefore split the data by expedition rather than by individual. 70% of expeditions went to the training set (42,446 members from 5,894 expeditions) and 30% to the test set (17,458 members from 2,526 expeditions), so that no expedition appears in both. Missing values and rare categories are handled inside the modelling pipeline using the training data only, as described in the next section.
+
 ```{python}
 from sklearn.model_selection import GroupShuffleSplit
 
