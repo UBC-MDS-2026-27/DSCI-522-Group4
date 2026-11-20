@@ -108,3 +108,5 @@ test_df.to_csv(f"{PROCESSED_DIR}/himalaya_test.csv", index=False)
 ## Discussion
 
 ## References
+Hawley, E. and Salisbury, R. (2020). The Himalayan Database. https://www.himalayandatabase.com/
+TidyTuesday (2020). Himalayan Climbing Expeditions. https://github.com/rfordatascience/tidytuesday/tree/main/data/2020/2020-09-22
