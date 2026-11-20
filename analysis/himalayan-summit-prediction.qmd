@@ -75,6 +75,20 @@ PROCESSED_DIR = "../data/processed"
 os.makedirs(PROCESSED_DIR, exist_ok=True)
 himalaya.to_csv(f"{PROCESSED_DIR}/himalaya_clean.csv", index=False)
 ```
+```{python}
+from sklearn.model_selection import GroupShuffleSplit
+
+splitter = GroupShuffleSplit(n_splits=1, test_size=0.3, random_state=522)
+train_idx, test_idx = next(splitter.split(himalaya, groups=himalaya["expedition_id"]))
+train_df = himalaya.iloc[train_idx]
+test_df = himalaya.iloc[test_idx]
+
+# No expedition should appear in both sets
+assert set(train_df["expedition_id"]).isdisjoint(test_df["expedition_id"])
+
+train_df.to_csv(f"{PROCESSED_DIR}/himalaya_train.csv", index=False)
+test_df.to_csv(f"{PROCESSED_DIR}/himalaya_test.csv", index=False)
+```
 
 ### Exploratory data analysis
 
