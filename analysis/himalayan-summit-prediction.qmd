@@ -1,7 +1,9 @@
 ---
 title: "Predicting Summit Success in the Nepal Himalaya from Pre-Expedition Information"
 author: "Rohan Chakkadath, Laith Saeed, Evan Pai, Harshil Sharma"
-format: html
+format:
+  html:
+    embed-resources: true
 jupyter: python3
 ---
 
@@ -27,6 +29,51 @@ os.makedirs(RAW_DIR, exist_ok=True)
 
 for name in ["members", "expeditions", "peaks"]:
     urllib.request.urlretrieve(f"{BASE_URL}{name}.csv", f"{RAW_DIR}/{name}.csv")
+```
+
+```{python}
+import pandas as pd
+
+members = pd.read_csv(f"{RAW_DIR}/members.csv")
+expeditions = pd.read_csv(f"{RAW_DIR}/expeditions.csv")
+peaks = pd.read_csv(f"{RAW_DIR}/peaks.csv")
+
+# Columns recorded during or after the climb. These reveal the outcome.
+LEAKY_MEMBER_COLS = [
+    "highpoint_metres", "died", "death_cause", "death_height_metres",
+    "injured", "injury_type", "injury_height_metres",
+    "oxygen_used",  # whether this member actually used oxygen
+]
+
+expedition_info = (
+    expeditions[["expedition_id", "year", "members", "hired_staff", "oxygen_used"]]
+    .rename(columns={"members": "team_size", "oxygen_used": "expedition_oxygen"})
+)
+peak_info = peaks[["peak_id", "height_metres"]].rename(
+    columns={"height_metres": "peak_height_m"}
+)
+
+himalaya = (
+    members
+    .drop(columns=LEAKY_MEMBER_COLS)
+    .drop_duplicates(subset=["expedition_id", "member_id"])
+    .merge(expedition_info, on=["expedition_id", "year"], how="left", validate="many_to_one")
+    .merge(peak_info, on="peak_id", how="left", validate="many_to_one")
+    .query("year >= 1990 and season != 'Unknown'")
+)
+
+FEATURES = [
+    "year", "season", "sex", "age", "citizenship", "expedition_role",
+    "hired", "solo", "team_size", "hired_staff", "expedition_oxygen",
+    "peak_height_m",
+]
+TARGET = "success"
+
+himalaya = himalaya[["expedition_id", "peak_name"] + FEATURES + [TARGET]]
+
+PROCESSED_DIR = "../data/processed"
+os.makedirs(PROCESSED_DIR, exist_ok=True)
+himalaya.to_csv(f"{PROCESSED_DIR}/himalaya_clean.csv", index=False)
 ```
 
 ### Exploratory data analysis
