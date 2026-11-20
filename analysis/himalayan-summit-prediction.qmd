@@ -1,0 +1,113 @@
+---
+title: "Predicting Summit Success in the Nepal Himalaya from Pre-Expedition Information"
+author: "Rohan Chakkadath, Laith Saeed, Evan Pai, Harshil Sharma"
+format:
+  html:
+    embed-resources: true
+jupyter: python3
+---
+
+## Summary
+
+## Introduction
+
+## Methods
+
+### Data
+
+We used the Himalayan Database, a record of mountaineering expeditions in the Nepal Himalaya compiled by Elizabeth Hawley and Richard Salisbury (Hawley and Salisbury 2020), in the version distributed through the TidyTuesday project (TidyTuesday 2020). It consists of three linked tables: one row per expedition member, one row per expedition, and one row per peak. The code below downloads all three tables from the TidyTuesday repository and saves unmodified copies before any processing.
+
+```{python}
+import os
+import urllib.request
+
+# Source: https://github.com/rfordatascience/tidytuesday/tree/main/data/2020/2020-09-22
+BASE_URL = (
+    "https://raw.githubusercontent.com/rfordatascience/tidytuesday/"
+    "main/data/2020/2020-09-22/"
+)
+RAW_DIR = "../data/raw"
+os.makedirs(RAW_DIR, exist_ok=True)
+
+for name in ["members", "expeditions", "peaks"]:
+    urllib.request.urlretrieve(f"{BASE_URL}{name}.csv", f"{RAW_DIR}/{name}.csv")
+```
+
+Each observation in our analysis is one expedition member, and the target is whether that member reached the summit. We joined each member to their expedition's team size, number of hired staff and whether the expedition used supplemental oxygen, and to the height of the peak attempted. We kept only information that would be known before the climb begins. We removed every variable recorded during or after the expedition: the highest point the member reached, whether they died or were injured, and the cause and altitude of any death or injury. We also removed the member-level indicator of oxygen use, because a climber who turns back early never reaches the altitude where oxygen is used, so this variable partly records the outcome. We used the expedition-level indicator instead, as an approximation of planned oxygen use.
+
+We restricted the data to expeditions from 1990 onward, to focus on the modern era of commercial climbing, and removed one record with an unknown season. The final data set contains 59,904 member records from 8,420 expeditions on 325 peaks.
+
+```{python}
+import pandas as pd
+
+members = pd.read_csv(f"{RAW_DIR}/members.csv")
+expeditions = pd.read_csv(f"{RAW_DIR}/expeditions.csv")
+peaks = pd.read_csv(f"{RAW_DIR}/peaks.csv")
+
+# Columns recorded during or after the climb. These reveal the outcome.
+LEAKY_MEMBER_COLS = [
+    "highpoint_metres", "died", "death_cause", "death_height_metres",
+    "injured", "injury_type", "injury_height_metres",
+    "oxygen_used",  # whether this member actually used oxygen
+]
+
+expedition_info = (
+    expeditions[["expedition_id", "year", "members", "hired_staff", "oxygen_used"]]
+    .rename(columns={"members": "team_size", "oxygen_used": "expedition_oxygen"})
+)
+peak_info = peaks[["peak_id", "height_metres"]].rename(
+    columns={"height_metres": "peak_height_m"}
+)
+
+himalaya = (
+    members
+    .drop(columns=LEAKY_MEMBER_COLS)
+    .drop_duplicates(subset=["expedition_id", "member_id"])
+    .merge(expedition_info, on=["expedition_id", "year"], how="left", validate="many_to_one")
+    .merge(peak_info, on="peak_id", how="left", validate="many_to_one")
+    .query("year >= 1990 and season != 'Unknown'")
+)
+
+FEATURES = [
+    "year", "season", "sex", "age", "citizenship", "expedition_role",
+    "hired", "solo", "team_size", "hired_staff", "expedition_oxygen",
+    "peak_height_m",
+]
+TARGET = "success"
+
+himalaya = himalaya[["expedition_id", "peak_name"] + FEATURES + [TARGET]]
+
+PROCESSED_DIR = "../data/processed"
+os.makedirs(PROCESSED_DIR, exist_ok=True)
+himalaya.to_csv(f"{PROCESSED_DIR}/himalaya_clean.csv", index=False)
+```
+
+Members of the same expedition share a team, a route, weather and a leader, so their outcomes are strongly related. If members of one expedition appeared in both the training and test sets, the model could partly memorise expedition-level conditions, and its test performance would overstate how well it predicts for a new expedition. We therefore split the data by expedition rather than by individual. 70% of expeditions went to the training set (42,446 members from 5,894 expeditions) and 30% to the test set (17,458 members from 2,526 expeditions), so that no expedition appears in both. Missing values and rare categories are handled inside the modelling pipeline using the training data only, as described in the next section.
+
+```{python}
+from sklearn.model_selection import GroupShuffleSplit
+
+splitter = GroupShuffleSplit(n_splits=1, test_size=0.3, random_state=522)
+train_idx, test_idx = next(splitter.split(himalaya, groups=himalaya["expedition_id"]))
+train_df = himalaya.iloc[train_idx]
+test_df = himalaya.iloc[test_idx]
+
+# No expedition should appear in both sets
+assert set(train_df["expedition_id"]).isdisjoint(test_df["expedition_id"])
+
+train_df.to_csv(f"{PROCESSED_DIR}/himalaya_train.csv", index=False)
+test_df.to_csv(f"{PROCESSED_DIR}/himalaya_test.csv", index=False)
+```
+
+### Exploratory data analysis
+
+### Modelling
+
+## Results
+
+## Discussion
+
+## References
+Hawley, E. and Salisbury, R. (2020). The Himalayan Database. https://www.himalayandatabase.com/
+
+TidyTuesday (2020). Himalayan Climbing Expeditions. https://github.com/rfordatascience/tidytuesday/tree/main/data/2020/2020-09-22
