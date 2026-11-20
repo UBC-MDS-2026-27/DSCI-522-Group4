@@ -11,11 +11,15 @@ jupyter: python3
 
 ## Introduction
 
+Climbing in the Nepal Himalaya has grown into a commercial industry. Guided expeditions now take paying clients up some of the highest mountains in the world, supported by hired guides and high-altitude workers, many of whom are Sherpa. The risks of this work are serious and unevenly shared: about one third of all deaths on Everest have been Sherpa climbers (Preiss 2018). Climbers, the agencies that organise expeditions and the authorities that issue climbing permits all make important decisions before an expedition sets off, such as which peak to attempt, in which season, with how large a team and with how much hired support. Knowing how strongly these choices are linked to reaching the summit could help climbers set realistic expectations and help organisers plan their expeditions.
+
+In this project we ask whether information known before an expedition begins can predict whether an individual climber will reach the summit. We treat this as a binary classification problem in which each observation is one expedition member and the target is whether that member summited. The predictors describe the climber (age, sex, citizenship, role on the team and whether they were hired staff), the expedition (year, season, team size, number of hired staff and whether the expedition used supplemental oxygen) and the peak (its height). We use the Himalayan Database (Hawley and Salisbury 2020), which records expeditions to more than 465 peaks in the Nepal Himalaya from 1905 to spring 2019, in the version prepared for the TidyTuesday project (TidyTuesday 2020).
+
 ## Methods
 
 ### Data
 
-We used the Himalayan Database, a record of mountaineering expeditions in the Nepal Himalaya compiled by Elizabeth Hawley and Richard Salisbury (Hawley and Salisbury 2020), in the version distributed through the TidyTuesday project (TidyTuesday 2020). It consists of three linked tables: one row per expedition member, one row per expedition, and one row per peak. The code below downloads all three tables from the TidyTuesday repository and saves unmodified copies before any processing.
+The code below downloads the three tables used in this analysis (one row per expedition member, one per expedition and one per peak) from the TidyTuesday repository and saves unmodified copies to the raw data folder before any processing.
 
 ```{python}
 import os
@@ -101,6 +105,185 @@ test_df.to_csv(f"{PROCESSED_DIR}/himalaya_test.csv", index=False)
 
 ### Exploratory data analysis
 
+We explored the training set only, so that nothing about the test set influenced our choices of features, preprocessing or evaluation metric. We made the figures with Altair (VanderPlas et al. 2018) and computed the distributions with NumPy (Harris et al. 2020).
+
+```{python}
+import altair as alt
+import numpy as np
+
+OUTCOME_LABELS = {True: "Summited", False: "Did not summit"}
+OUTCOME_SCALE = alt.Scale(
+    domain=["Summited", "Did not summit"], range=["#1b9e77", "#d95f02"]
+)
+
+overall_rate = train_df["success"].mean()
+majority_rate = 1 - overall_rate
+n_train = len(train_df)
+
+overall_pct = f"{overall_rate:.0%}"
+majority_pct = f"{majority_rate:.0%}"
+n_train_str = f"{n_train:,}"
+```
+
+Of the `{python} n_train_str` members in the training set, `{python} overall_pct` reached the summit (@fig-class-balance). The classes are moderately imbalanced: a model that always predicted "did not summit" would be correct `{python} majority_pct` of the time without learning anything. Plain accuracy would therefore make such a model look better than it is. We have no strong reason to treat one kind of error as worse than the other, since wrongly predicting success and wrongly predicting failure are both misleading to a climber or an organiser. We therefore evaluate models with balanced accuracy, the average of the proportion of summiters and the proportion of non-summiters that a model classifies correctly. A model that ignores either class scores no better than 50%.
+
+```{python}
+#| label: fig-class-balance
+#| fig-cap: "Number of members in the training set who did and did not reach the summit."
+balance = (
+    train_df["success"]
+    .map(OUTCOME_LABELS)
+    .value_counts()
+    .rename_axis("outcome")
+    .reset_index(name="members")
+)
+
+alt.Chart(balance).mark_bar().encode(
+    x=alt.X("members:Q", title="Number of members"),
+    y=alt.Y("outcome:N", title=None, sort="-x"),
+    color=alt.Color("outcome:N", scale=OUTCOME_SCALE, legend=None),
+    tooltip=["outcome", "members"],
+).properties(width=450, height=80)
+```
+
+@fig-categorical shows the success rate for each level of the main categorical features, with the overall success rate as a dashed line. Being hired staff is the strongest single signal: hired staff summited about twice as often as other members, which makes sense because many of them are guides who accompany clients to the top. Members of expeditions that used supplemental oxygen also summited far more often. This is partly because oxygen is used mainly on the highest and most commercial peaks, and partly because the expedition-level oxygen indicator is itself recorded after the climb, a limitation we return to in the Discussion. Spring was the most successful season and autumn the second. Winter and summer had lower success rates, but very few members climbed in those seasons, so their rates are less certain. Men summited somewhat more often than women, although women made up only about one in ten members. Solo climbs are too rare (58 members) to show here.
+
+```{python}
+#| label: fig-categorical
+#| fig-cap: "Success rate in the training set by season, hired status, expedition oxygen use and sex. The dashed line is the overall success rate."
+YES_NO = {True: "Yes", False: "No"}
+SEX_LABELS = {"M": "Male", "F": "Female"}
+
+
+def success_rate_chart(column, title, labels=None):
+    rates = (
+        train_df.groupby(column)["success"]
+        .agg(rate="mean", members="size")
+        .reset_index()
+    )
+    if labels is not None:
+        rates[column] = rates[column].map(labels)
+    bars = alt.Chart(rates).mark_bar(color="#7570b3").encode(
+        x=alt.X(f"{column}:N", title=title, sort="-y", axis=alt.Axis(labelAngle=0)),
+        y=alt.Y(
+            "rate:Q",
+            title="Success rate",
+            scale=alt.Scale(domain=[0, 1]),
+            axis=alt.Axis(format="%"),
+        ),
+        tooltip=[
+            alt.Tooltip(f"{column}:N", title=title),
+            alt.Tooltip("rate:Q", title="Success rate", format=".1%"),
+            alt.Tooltip("members:Q", title="Members", format=","),
+        ],
+    )
+    overall = alt.Chart(pd.DataFrame({"rate": [overall_rate]})).mark_rule(
+        strokeDash=[4, 4], color="black"
+    ).encode(y="rate:Q")
+    return (bars + overall).properties(width=180, height=180)
+
+
+(
+    success_rate_chart("season", "Season")
+    | success_rate_chart("hired", "Hired staff", YES_NO)
+) & (
+    success_rate_chart("expedition_oxygen", "Expedition used oxygen", YES_NO)
+    | success_rate_chart("sex", "Sex", SEX_LABELS)
+)
+```
+
+@fig-numeric compares the distributions of the numeric features for members who did and did not summit. Members who summited were slightly younger and tended to come from more recent years, which is consistent with success rates rising as commercial climbing became more organised. Their expeditions also had more hired staff. In contrast, the distributions of peak height and team size overlap almost completely, so on their own these features separate the two outcomes poorly. We still keep them as predictors, because they may matter in combination with other features. For example, the effect of hired support or oxygen may depend on how high the peak is.
+
+```{python}
+#| label: fig-numeric
+#| fig-cap: "Distributions of the numeric features in the training set for members who did and did not reach the summit. Each distribution is scaled to have area one. For team size and hired staff, the largest 1% of values are not shown so that the rest of the distribution is visible."
+NUMERIC_TITLES = {
+    "age": "Age (years)",
+    "year": "Year",
+    "peak_height_m": "Peak height (m)",
+    "team_size": "Team size",
+    "hired_staff": "Number of hired staff",
+}
+CLIP_TOP = ["team_size", "hired_staff"]
+
+
+def distribution_chart(column, bins=25):
+    values = train_df[column].dropna()
+    upper = values.quantile(0.99) if column in CLIP_TOP else values.max()
+    edges = np.histogram_bin_edges(values, bins=bins, range=(values.min(), upper))
+    frames = []
+    for outcome, group in train_df.groupby("success"):
+        density, _ = np.histogram(group[column].dropna(), bins=edges, density=True)
+        frames.append(
+            pd.DataFrame(
+                {
+                    "value": (edges[:-1] + edges[1:]) / 2,
+                    "density": density,
+                    "outcome": OUTCOME_LABELS[outcome],
+                }
+            )
+        )
+    return (
+        alt.Chart(pd.concat(frames))
+        .mark_area(opacity=0.5, interpolate="monotone")
+        .encode(
+            x=alt.X(
+                "value:Q",
+                title=NUMERIC_TITLES[column],
+                scale=alt.Scale(zero=False),
+                axis=alt.Axis(format="d") if column == "year" else alt.Axis(),
+            ),
+            y=alt.Y("density:Q", title="Density", stack=None),
+            color=alt.Color("outcome:N", scale=OUTCOME_SCALE, title="Outcome"),
+        )
+        .properties(width=200, height=150)
+    )
+
+
+alt.concat(
+    *[distribution_chart(c) for c in NUMERIC_TITLES], columns=3
+).configure_legend(orient="top")
+```
+
+Finally, @fig-peaks shows that the data are dominated by a few popular peaks. Everest alone accounts for about 31% of the training members, and Everest, Cho Oyu and Ama Dablam together account for about 58%. Success rates also differ widely between peaks of almost the same height. Manaslu (8,163 m) and Dhaulagiri I (8,167 m) are only 4 metres apart, yet about 43% of members summited Manaslu compared with about 24% on Dhaulagiri I. Himlung Himal and Pumori, both just over 7,100 m, show a similar gap (about 41% and 28%). This suggests that the route and level of commercial support on a peak matter, not just its height. Because peak identity is not one of our predictors, the model can capture these differences only through peak height and the other features. It may also perform best on the most frequently climbed peaks, since they make up most of the data it learns from.
+
+```{python}
+#| label: fig-peaks
+#| fig-cap: "The ten peaks with the most members in the training set: number of members (left) and success rate (right). The dashed line is the overall success rate."
+top_peaks = train_df["peak_name"].value_counts().head(10).index
+peak_summary = (
+    train_df[train_df["peak_name"].isin(top_peaks)]
+    .groupby("peak_name")["success"]
+    .agg(members="size", rate="mean")
+    .reset_index()
+)
+peak_order = alt.EncodingSortField(field="members", order="descending")
+
+peak_counts = alt.Chart(peak_summary).mark_bar(color="#7570b3").encode(
+    x=alt.X("members:Q", title="Number of members"),
+    y=alt.Y("peak_name:N", title=None, sort=peak_order),
+    tooltip=["peak_name", alt.Tooltip("members:Q", format=",")],
+)
+peak_rates = alt.Chart(peak_summary).mark_bar(color="#7570b3").encode(
+    x=alt.X(
+        "rate:Q",
+        title="Success rate",
+        scale=alt.Scale(domain=[0, 1]),
+        axis=alt.Axis(format="%"),
+    ),
+    y=alt.Y("peak_name:N", title=None, sort=peak_order, axis=None),
+    tooltip=["peak_name", alt.Tooltip("rate:Q", format=".1%")],
+)
+peak_overall = alt.Chart(pd.DataFrame({"rate": [overall_rate]})).mark_rule(
+    strokeDash=[4, 4], color="black"
+).encode(x="rate:Q")
+
+(
+    peak_counts.properties(width=250, height=250)
+    | (peak_rates + peak_overall).properties(width=200, height=250)
+)
+```
+
 ### Modelling
 
 ## Results
@@ -108,6 +291,13 @@ test_df.to_csv(f"{PROCESSED_DIR}/himalaya_test.csv", index=False)
 ## Discussion
 
 ## References
+
+Harris, C. R., Millman, K. J., van der Walt, S. J., et al. (2020). Array programming with NumPy. Nature, 585, 357-362. https://doi.org/10.1038/s41586-020-2649-2
+
 Hawley, E. and Salisbury, R. (2020). The Himalayan Database. https://www.himalayandatabase.com/
 
+Preiss, D. (2018, April 14). One-third of Everest deaths are Sherpa climbers. NPR. https://www.npr.org/sections/parallels/2018/04/14/599417489/one-third-of-everest-deaths-are-sherpa-climbers
+
 TidyTuesday (2020). Himalayan Climbing Expeditions. https://github.com/rfordatascience/tidytuesday/tree/main/data/2020/2020-09-22
+
+VanderPlas, J., Granger, B. E., Heer, J., et al. (2018). Altair: Interactive statistical visualizations for Python. Journal of Open Source Software, 3(32), 1057. https://doi.org/10.21105/joss.01057
