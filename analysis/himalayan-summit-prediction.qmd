@@ -19,7 +19,7 @@ In this project we ask whether information known before an expedition begins can
 
 ### Data
 
-We used the Himalayan Database, a record of mountaineering expeditions in the Nepal Himalaya compiled by Elizabeth Hawley and Richard Salisbury (Hawley and Salisbury 2020), in the version distributed through the TidyTuesday project (TidyTuesday 2020). It consists of three linked tables: one row per expedition member, one row per expedition, and one row per peak. The code below downloads all three tables from the TidyTuesday repository and saves unmodified copies before any processing.
+The code below downloads the three tables used in this analysis (one row per expedition member, one per expedition and one per peak) from the TidyTuesday repository and saves unmodified copies to the raw data folder before any processing.
 
 ```{python}
 import os
