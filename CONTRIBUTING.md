@@ -1,4 +1,4 @@
-# Contributing to [Project Name]
+# Contributing to Predicting Summit Success in the Nepal Himalaya
 
 Thank you for your interest in contributing! This project was created by
 Rohan Chakkadath, Laith Saeed, Evan Pai, and Harshil Sharma as part of DSCI 522
@@ -21,8 +21,8 @@ By participating in this project, you agree to follow our
 ## Reporting a bug
 
 Before opening a new issue, please search the existing
-[issues](https://github.com/UBC-MDS-2026-27/[repo-name]/issues) to check that
-the problem has not already been reported.
+[issues](https://github.com/UBC-MDS-2026-27/DSCI-522-Group4/issues) to check
+that the problem has not already been reported.
 
 If it has not, open a new issue and include:
 
@@ -36,19 +36,28 @@ If it has not, open a new issue and include:
 ## Suggesting a change
 
 To suggest an improvement, open an
-[issue](https://github.com/UBC-MDS-2026-27/[repo-name]/issues) that describes
-the change and explains why it would be useful. For larger changes, please wait
-for a team member to respond before you start working on it, so that we can
-agree on the approach first.
+[issue](https://github.com/UBC-MDS-2026-27/DSCI-522-Group4/issues) that
+describes the change and explains why it would be useful. For larger changes,
+please wait for a team member to respond before you start working on it, so
+that we can agree on the approach first.
 
 ## Submitting your work
 
 ### Setting up
 
-Follow the instructions in the [README](README.md) to clone the repository and
-set up the computational environment. If your change needs a new package, add
-it with `uv add <package-name>` so that `pyproject.toml` and `uv.lock` stay up
-to date, and commit both files.
+Clone the repository and set up the computational environment with
+[uv](https://docs.astral.sh/uv/):
+
+    git clone https://github.com/UBC-MDS-2026-27/DSCI-522-Group4.git
+    cd DSCI-522-Group4
+    uv sync
+
+To render the report, run this from the root of the repository:
+
+    uv run quarto render analysis/himalayan-summit-prediction.qmd
+
+If your change needs a new package, add it with `uv add <package-name>` so that
+`pyproject.toml` and `uv.lock` stay up to date, and commit both files.
 
 ### Workflow
 
@@ -123,5 +132,5 @@ every line of your contribution to a reviewer.
 ## Questions
 
 If you have a question that is not covered here, please open an
-[issue](https://github.com/UBC-MDS-2026-27/[repo-name]/issues) and a team member
-will get back to you.
+[issue](https://github.com/UBC-MDS-2026-27/DSCI-522-Group4/issues) and a team
+member will get back to you.
