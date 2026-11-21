@@ -594,6 +594,69 @@ model_comparison.style.hide(axis="index").format(
 )
 ```
 
+### Performance on the test set
+
+Up to this point, every decision was made using the training set only. We then evaluated the final gradient boosting model, refitted on the whole training set with its best hyperparameters, once on the test set.
+
+```{python}
+from sklearn.metrics import balanced_accuracy_score, confusion_matrix
+
+final_model = hgb_search.best_estimator_
+X_test = test_df[NUMERIC + CATEGORICAL + BINARY]
+y_test = test_df["success"]
+y_pred = final_model.predict(X_test)
+
+test_score = balanced_accuracy_score(y_test, y_pred)
+tn, fp, fn, tp = confusion_matrix(y_test, y_pred, labels=[False, True]).ravel()
+summit_recall = tp / (tp + fn)
+no_summit_recall = tn / (tn + fp)
+summit_precision = tp / (tp + fp)
+
+test_str = f"{test_score:.3f}"
+n_test_str = f"{len(test_df):,}"
+n_test_exp_str = f"{test_df['expedition_id'].nunique():,}"
+summit_recall_str = f"{summit_recall:.0%}"
+no_summit_recall_str = f"{no_summit_recall:.0%}"
+summit_precision_str = f"{summit_precision:.0%}"
+no_summit_precision_str = f"{tn / (tn + fn):.0%}"
+fn_str = f"{fn:,}"
+fp_str = f"{fp:,}"
+```
+
+On the `{python} n_test_str` test members from `{python} n_test_exp_str` expeditions, none of which were seen during training, the final model reached a balanced accuracy of `{python} test_str`. This is slightly lower than its cross-validation score of `{python} hgb_str`. A small drop is expected, because the hyperparameters were chosen as the best of 20 combinations on the same cross-validation folds, which makes the best cross-validation score a little optimistic. The model still performs well above the dummy baseline on expeditions it has never seen.
+
+@fig-confusion shows the test set predictions in more detail. The model correctly identified `{python} summit_recall_str` of the members who reached the summit and `{python} no_summit_recall_str` of those who did not. When it predicted that a member would summit, it was right `{python} summit_precision_str` of the time. The model is therefore somewhat cautious: it missed `{python} fn_str` members who did reach the summit, compared with `{python} fp_str` members who were wrongly predicted to succeed. When it predicted that a member would not summit, it was right `{python} no_summit_precision_str` of the time.
+
+```{python}
+#| label: fig-confusion
+#| fig-cap: "Confusion matrix of the final gradient boosting model on the test set. Each cell shows the number of test members with that combination of actual and predicted outcome."
+confusion = pd.DataFrame(
+    {
+        "Actual outcome": ["Did not summit", "Did not summit", "Summited", "Summited"],
+        "Predicted outcome": ["Did not summit", "Summited", "Did not summit", "Summited"],
+        "Members": [tn, fp, fn, tp],
+    }
+)
+outcome_order = ["Summited", "Did not summit"]
+confusion_base = alt.Chart(confusion).encode(
+    x=alt.X("Predicted outcome:N", sort=outcome_order, axis=alt.Axis(labelAngle=0)),
+    y=alt.Y("Actual outcome:N", sort=outcome_order),
+)
+confusion_cells = confusion_base.mark_rect().encode(
+    color=alt.Color("Members:Q", scale=alt.Scale(scheme="purples"), legend=None),
+    tooltip=["Actual outcome", "Predicted outcome", alt.Tooltip("Members:Q", format=",")],
+)
+confusion_text = confusion_base.mark_text(fontSize=16).encode(
+    text=alt.Text("Members:Q", format=","),
+    color=alt.condition(
+        alt.datum.Members > confusion["Members"].max() / 2,
+        alt.value("white"),
+        alt.value("black"),
+    ),
+)
+(confusion_cells + confusion_text).properties(width=300, height=220)
+```
+
 ## Discussion
 
 ## References
