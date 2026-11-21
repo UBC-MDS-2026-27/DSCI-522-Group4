@@ -53,7 +53,7 @@ From the root of the repository, run:
 uv run quarto render analysis/himalayan-summit-prediction.qmd
 ```
 
-This runs the whole analysis from scratch and takes a few minutes. It
+This runs the whole analysis from scratch and takes about 5–10 minutes, depending on your computer. It
 downloads the data again from the TidyTuesday repository (so you need an
 internet connection), overwrites the files in `data/raw/` and
 `data/processed/`, and writes the report to
