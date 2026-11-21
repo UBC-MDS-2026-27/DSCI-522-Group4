@@ -25,9 +25,9 @@ in this repository, including any part produced with AI assistance.
 **Example prompts:**
 
 - *Code of conduct:* "Review my initial draft for the code of conduct and suggest changes" (with my draft attached)
-- *Contributing and license:* "Brief outline on how to draft a CONTRIBUTING.md." / "HBrief outline on how to draft a LICENSE.md, what are the key points to keep in mind."
+- *Contributing and license:* "Brief outline on how to draft a CONTRIBUTING.md." / "Brief outline on how to draft a LICENSE.md, what are the key points to keep in mind."
 - *Data work:* "Help me organise my data tasks: download the members, expeditions and peaks CSVs, join them, drop the leaky columns, filter to 1990 onward, and do a grouped 70/30 train/test split by expedition."
-- *Reviewing:* "Grammar check. Flag inconsistent punctuations"
+- *Reviewing:* "Grammar check. Flag inconsistent punctuation"
 
 ### Harshil Sharma
 
