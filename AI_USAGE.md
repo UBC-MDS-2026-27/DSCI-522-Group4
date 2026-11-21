@@ -13,7 +13,21 @@ in this repository, including any part produced with AI assistance.
 
 ### Rohan Chakkadath
 
-*To be added by Rohan.*
+**Tool:** Claude (Opus 5.5). No instruction files were used.
+
+**Used for:**
+
+- Planning the work split and task order for Milestone 1
+- Reviewing my `CODE_OF_CONDUCT.md`, the rendered report and the teamwork contract for errors
+- Generating initial versions of `CONTRIBUTING.md`, `LICENSE.md`, the data download, cleaning and split code, and the Methods: Data text. I then reviewed, tested and edited each one before committing. While testing, Claude flagged a leaky oxygen column and a duplicated expedition ID.
+- Help with git commands and with wording issue and PR descriptions
+
+**Example prompts:**
+
+- *Code of conduct:* "Review my initial draft for the code of conduct and suggest changes" (with my draft attached)
+- *Contributing and license:* "Brief outline on how to draft a CONTRIBUTING.md." / "HBrief outline on how to draft a LICENSE.md, what are the key points to keep in mind."
+- *Data work:* "Help me organise my data tasks: download the members, expeditions and peaks CSVs, join them, drop the leaky columns, filter to 1990 onward, and do a grouped 70/30 train/test split by expedition."
+- *Reviewing:* "Grammar check. Flag inconsistent punctuations"
 
 ### Harshil Sharma
 
