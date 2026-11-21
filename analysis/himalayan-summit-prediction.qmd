@@ -329,6 +329,23 @@ def make_preprocessor(binary=BINARY):
     )
 ```
 
+As a baseline, we used a dummy classifier that ignores the predictors and always predicts the most common outcome in the training folds. Any useful model should do clearly better than this baseline.
+
+```{python}
+from sklearn.dummy import DummyClassifier
+from sklearn.model_selection import cross_validate
+
+dummy_cv = cross_validate(
+    make_pipeline(make_preprocessor(), DummyClassifier()),
+    X_train,
+    y_train,
+    groups=groups_train,
+    cv=cv,
+    scoring="balanced_accuracy",
+)
+dummy_score = dummy_cv["test_score"].mean()
+```
+
 ## Results
 
 ## Discussion
