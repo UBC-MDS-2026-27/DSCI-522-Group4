@@ -420,6 +420,80 @@ dummy_rule = alt.Chart(pd.DataFrame({"score": [dummy_score]})).mark_rule(
 
 ## Results
 
+### What the logistic regression learned
+
+```{python}
+FEATURE_TITLES = {
+    "year": "Year",
+    "age": "Age",
+    "team_size": "Team size",
+    "hired_staff": "Number of hired staff",
+    "peak_height_m": "Peak height",
+    "season": "Season",
+    "sex": "Sex",
+    "citizenship": "Citizenship",
+    "expedition_role": "Expedition role",
+    "hired": "Hired staff",
+    "solo": "Solo climb",
+    "expedition_oxygen": "Expedition used oxygen",
+}
+LEVEL_LABELS = {
+    "BC Manager": "base camp manager",
+    "H-A Worker": "high-altitude worker",
+    "H-A Assistant": "high-altitude assistant",
+    "Exp Doctor": "expedition doctor",
+    "Sirdar": "sirdar (head of the hired staff)",
+    "S Korea": "South Korea",
+    "S Africa": "South Africa",
+    "F": "female",
+    "M": "male",
+    "infrequent_sklearn": "other (rare levels)",
+}
+
+
+def readable_name(feature_name):
+    """Turn a name such as 'pipeline-2__season_Summer' into 'Season: Summer'."""
+    column_part = feature_name.split("__", 1)[1]
+    for column, title in FEATURE_TITLES.items():
+        if column_part in (column, f"{column}_True"):
+            return title
+        if column_part.startswith(f"{column}_"):
+            level = column_part[len(column) + 1:]
+            return f"{title}: {LEVEL_LABELS.get(level, level)}"
+    return column_part
+
+
+best_lr = lr_search.best_estimator_
+coefficients = pd.DataFrame(
+    {
+        "Feature": [readable_name(n) for n in best_lr[0].get_feature_names_out()],
+        "Coefficient": best_lr[-1].coef_[0],
+    }
+)
+coef_lookup = coefficients.set_index("Feature")["Coefficient"]
+top_coefficients = (
+    coefficients.reindex(coefficients["Coefficient"].abs().sort_values(ascending=False).index)
+    .head(10)
+    .assign(**{"Effect on chance of summiting": lambda d: np.where(d["Coefficient"] > 0, "Higher", "Lower")})
+)
+
+bc_coef_str = f"{coef_lookup['Expedition role: base camp manager']:.1f}"
+oxygen_coef_str = f"{coef_lookup['Expedition used oxygen']:.1f}"
+solo_coef_str = f"{coef_lookup['Solo climb']:.1f}"
+n_solo_str = f"{train_df['solo'].sum():,}"
+sex_gap_str = f"{abs(coef_lookup['Sex: male'] - coef_lookup['Sex: female']):.2f}"
+```
+
+@tbl-coefs lists the ten features with the largest coefficients in the best logistic regression model, fitted on the whole training set. Numeric features were standardised, so their coefficients describe the change in the log-odds of summiting for a one standard deviation increase. Each level of a categorical feature has its own coefficient, which is best read relative to the other levels of the same feature.
+
+```{python}
+#| label: tbl-coefs
+#| tbl-cap: "The ten largest logistic regression coefficients by absolute value. Positive coefficients are linked to a higher chance of reaching the summit and negative coefficients to a lower chance."
+top_coefficients.style.hide(axis="index").format({"Coefficient": "{:.2f}"})
+```
+
+The largest coefficient by far belongs to base camp managers (`{python} bc_coef_str`). None of the base camp managers in the training set reached the summit, which is expected because their job is to run base camp rather than to climb. This shows that the expedition role partly encodes whether a member intended to go to the summit at all. Expedition oxygen use has the largest positive coefficient (`{python} oxygen_coef_str`), in line with the exploratory analysis. Solo climbing also has a large positive coefficient (`{python} solo_coef_str`), but only `{python} n_solo_str` training members climbed solo, so this estimate is very uncertain. Leadership roles were linked to a higher chance of summiting than ordinary climbers, and climbing in summer to a lower chance than the other seasons. In contrast, the coefficients for female and male members differ by only `{python} sex_gap_str`, so once the other features are taken into account, sex adds little to the prediction, even though men summited somewhat more often overall (@fig-categorical).
+
 ## Discussion
 
 ## References
