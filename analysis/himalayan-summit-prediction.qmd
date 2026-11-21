@@ -290,7 +290,7 @@ We used twelve predictors: five numeric features (year, age, team size, number o
 
 All preprocessing was done inside a scikit-learn (Pedregosa et al. 2011) pipeline, so that during cross-validation each step was fitted only on the training folds and nothing was learned from the fold being scored. Numeric features were imputed with the median, because age is missing for about 3% of training members and its distribution is slightly right-skewed, and then standardised so that their scales are comparable. Missing citizenship and expedition role values were replaced with an "Unknown" level. Citizenship has close to 200 levels and expedition role more than 250, most of them very rare. Rather than choosing the levels to keep by hand, we one-hot encoded these features and grouped every level seen fewer than 100 times in the training data into a single "infrequent" level. This keeps the common countries and roles while preventing the model from fitting noise in levels with only a handful of members. The binary features were encoded as a single indicator each.
 
-Because members of the same expedition share conditions that strongly affect their outcomes, we used grouped 5-fold cross-validation (GroupKFold) with the expedition as the group, for the same reason that we split the training and test sets by expedition. Every model was evaluated with balanced accuracy, as justified in the exploratory analysis.
+Because members of the same expedition share conditions that strongly affect their outcomes, we used grouped 5-fold cross-validation (GroupKFold) with the expedition as the group, for the same reason that we split the training and test sets by expedition. Every model was evaluated with balanced accuracy, as justified in the exploratory analysis. Because the expedition oxygen indicator may be partly recorded after the climb, we also refitted the logistic regression without it, to measure how much the model relies on this feature.
 
 ```{python}
 from sklearn.compose import make_column_transformer
@@ -505,7 +505,8 @@ lr_no_oxygen_search = tune_logistic_regression(
 lr_no_oxygen_score = lr_no_oxygen_search.best_score_
 
 lr_no_oxygen_str = f"{lr_no_oxygen_score:.3f}"
-oxygen_drop_str = f"{lr_score - lr_no_oxygen_score:.3f}"
+# Use the rounded scores so the drop matches the numbers shown in the text
+oxygen_drop_str = f"{round(lr_score, 3) - round(lr_no_oxygen_score, 3):.3f}"
 ```
 
 Without expedition oxygen use, the best cross-validation balanced accuracy fell from `{python} lr_str` to `{python} lr_no_oxygen_str`, a drop of `{python} oxygen_drop_str`. The model therefore still predicts clearly better than the dummy baseline (`{python} dummy_str`) without this feature, but oxygen use accounts for a noticeable part of its performance. If the indicator does partly reflect what happened during the climb, the scores of the models that use it are somewhat optimistic. We keep the feature in the main models because planned oxygen use is genuinely known before an expedition sets off, and we return to this limitation in the Discussion.
