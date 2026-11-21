@@ -3,7 +3,7 @@
 **Authors:** Rohan Chakkadath, Laith Saeed, Evan Pai and Harshil Sharma
 
 Data analysis project for DSCI 522 (Data Science Workflows),
-as part of UBC's Master of Data Science Program 
+as part of UBC's Master of Data Science program.
 
 
 ## Summary

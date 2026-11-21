@@ -159,7 +159,7 @@ details.
 **Actions the tool took on GitHub**
 
 None. I opened all of my issues (#24 to #27) and reviewed, approved and
-merged all pull requests myself. Claude Code only ran read-only git commands
+merged PRs #11, #13, #15 and #17 myself. Claude Code only ran read-only git commands
 on my computer (such as `git status`, `git log` and `git fetch`), read public
 pages of our repository, and once made a temporary local copy of the
 repository to test that the report renders.
