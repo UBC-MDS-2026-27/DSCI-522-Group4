@@ -418,6 +418,45 @@ dummy_rule = alt.Chart(pd.DataFrame({"score": [dummy_score]})).mark_rule(
 (lr_band + lr_line + dummy_rule).properties(width=450, height=250)
 ```
 
+Logistic regression assumes that each feature changes the log-odds of summiting by a fixed amount, regardless of the other features. The exploratory analysis suggested that this may be too simple: for example, the benefit of hired support or oxygen may depend on how high the peak is. Our second model was therefore a histogram-based gradient boosting classifier, which builds an ensemble of decision trees, each correcting the errors of the previous ones. Tree ensembles can capture non-linear effects and interactions between features without us having to specify them, and the histogram-based implementation is fast on a data set of this size. It used the same preprocessing pipeline as logistic regression.
+
+We tuned three hyperparameters: the maximum depth of each tree, which controls how complex the interactions can be; the number of boosting iterations, that is, the number of trees; and the learning rate, which controls how much each tree contributes. Because there are three hyperparameters, we used a randomised search over 20 combinations rather than a full grid, again with grouped 5-fold cross-validation and balanced accuracy.
+
+```{python}
+from scipy.stats import loguniform, randint
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.model_selection import RandomizedSearchCV
+
+hgb_search = RandomizedSearchCV(
+    make_pipeline(make_preprocessor(), HistGradientBoostingClassifier(random_state=522)),
+    {
+        "histgradientboostingclassifier__max_depth": [3, 5, 8, None],
+        "histgradientboostingclassifier__max_iter": randint(100, 500),
+        "histgradientboostingclassifier__learning_rate": loguniform(0.01, 0.3),
+    },
+    n_iter=20,
+    cv=cv,
+    scoring="balanced_accuracy",
+    n_jobs=-1,
+    random_state=522,
+)
+hgb_search.fit(X_train, y_train, groups=groups_train)
+hgb_score = hgb_search.best_score_
+
+hgb_best = hgb_search.best_params_
+hgb_depth = hgb_best["histgradientboostingclassifier__max_depth"]
+hgb_depth_str = (
+    "no limit on tree depth (each tree is still limited to 31 leaves by default)"
+    if hgb_depth is None
+    else f"a maximum tree depth of {hgb_depth}"
+)
+hgb_iter_str = str(hgb_best["histgradientboostingclassifier__max_iter"])
+hgb_lr_str = f"{hgb_best['histgradientboostingclassifier__learning_rate']:.3f}"
+hgb_str = f"{hgb_score:.3f}"
+```
+
+The best combination used `{python} hgb_depth_str`, `{python} hgb_iter_str` trees and a learning rate of `{python} hgb_lr_str`, with a mean cross-validation balanced accuracy of `{python} hgb_str`.
+
 ## Results
 
 ### What the logistic regression learned
@@ -510,6 +549,113 @@ oxygen_drop_str = f"{round(lr_score, 3) - round(lr_no_oxygen_score, 3):.3f}"
 ```
 
 Without expedition oxygen use, the best cross-validation balanced accuracy fell from `{python} lr_str` to `{python} lr_no_oxygen_str`, a drop of `{python} oxygen_drop_str`. The model therefore still predicts clearly better than the dummy baseline (`{python} dummy_str`) without this feature, but oxygen use accounts for a noticeable part of its performance. If the indicator does partly reflect what happened during the climb, the scores of the models that use it are somewhat optimistic. We keep the feature in the main models because planned oxygen use is genuinely known before an expedition sets off, and we return to this limitation in the Discussion.
+
+### Model comparison
+
+```{python}
+def best_cv_sd(search):
+    return search.cv_results_["std_test_score"][search.best_index_]
+
+
+model_comparison = pd.DataFrame(
+    {
+        "Model": [
+            "Dummy baseline (most frequent class)",
+            "Logistic regression without expedition oxygen",
+            "Logistic regression",
+            "Gradient boosting",
+        ],
+        "Mean CV balanced accuracy": [
+            dummy_score,
+            lr_no_oxygen_score,
+            lr_score,
+            hgb_score,
+        ],
+        "SD across folds": [
+            dummy_cv["test_score"].std(),
+            best_cv_sd(lr_no_oxygen_search),
+            best_cv_sd(lr_search),
+            best_cv_sd(hgb_search),
+        ],
+    }
+)
+
+hgb_gain_str = f"{round(hgb_score, 3) - round(lr_score, 3):.3f}"
+max_sd_str = f"{model_comparison['SD across folds'].iloc[1:].max():.3f}"
+```
+
+@tbl-model-comparison summarises the cross-validation results. Both logistic regression models are far better than the dummy baseline. Gradient boosting reached a mean balanced accuracy of `{python} hgb_str`, `{python} hgb_gain_str` higher than logistic regression. This gain is larger than the variation between folds (standard deviations of at most `{python} max_sd_str` for the three real models), which suggests that the interactions and non-linear effects captured by the trees do carry real information about summit success. We therefore chose gradient boosting as our final model.
+
+```{python}
+#| label: tbl-model-comparison
+#| tbl-cap: "Mean and standard deviation (SD) of balanced accuracy across the five grouped cross-validation folds on the training set, for each model with its best hyperparameters."
+model_comparison.style.hide(axis="index").format(
+    {"Mean CV balanced accuracy": "{:.3f}", "SD across folds": "{:.3f}"}
+)
+```
+
+### Performance on the test set
+
+Up to this point, every decision was made using the training set only. We then evaluated the final gradient boosting model, refitted on the whole training set with its best hyperparameters, once on the test set.
+
+```{python}
+from sklearn.metrics import balanced_accuracy_score, confusion_matrix
+
+final_model = hgb_search.best_estimator_
+X_test = test_df[NUMERIC + CATEGORICAL + BINARY]
+y_test = test_df["success"]
+y_pred = final_model.predict(X_test)
+
+test_score = balanced_accuracy_score(y_test, y_pred)
+tn, fp, fn, tp = confusion_matrix(y_test, y_pred, labels=[False, True]).ravel()
+summit_recall = tp / (tp + fn)
+no_summit_recall = tn / (tn + fp)
+summit_precision = tp / (tp + fp)
+
+test_str = f"{test_score:.3f}"
+n_test_str = f"{len(test_df):,}"
+n_test_exp_str = f"{test_df['expedition_id'].nunique():,}"
+summit_recall_str = f"{summit_recall:.0%}"
+no_summit_recall_str = f"{no_summit_recall:.0%}"
+summit_precision_str = f"{summit_precision:.0%}"
+no_summit_precision_str = f"{tn / (tn + fn):.0%}"
+fn_str = f"{fn:,}"
+fp_str = f"{fp:,}"
+```
+
+On the `{python} n_test_str` test members from `{python} n_test_exp_str` expeditions, none of which were seen during training, the final model reached a balanced accuracy of `{python} test_str`. This is slightly lower than its cross-validation score of `{python} hgb_str`. A small drop is expected, because the hyperparameters were chosen as the best of 20 combinations on the same cross-validation folds, which makes the best cross-validation score a little optimistic. The model still performs well above the dummy baseline on expeditions it has never seen.
+
+@fig-confusion shows the test set predictions in more detail. The model correctly identified `{python} summit_recall_str` of the members who reached the summit and `{python} no_summit_recall_str` of those who did not. When it predicted that a member would summit, it was right `{python} summit_precision_str` of the time. The model is therefore somewhat cautious: it missed `{python} fn_str` members who did reach the summit, compared with `{python} fp_str` members who were wrongly predicted to succeed. When it predicted that a member would not summit, it was right `{python} no_summit_precision_str` of the time.
+
+```{python}
+#| label: fig-confusion
+#| fig-cap: "Confusion matrix of the final gradient boosting model on the test set. Each cell shows the number of test members with that combination of actual and predicted outcome."
+confusion = pd.DataFrame(
+    {
+        "Actual outcome": ["Did not summit", "Did not summit", "Summited", "Summited"],
+        "Predicted outcome": ["Did not summit", "Summited", "Did not summit", "Summited"],
+        "Members": [tn, fp, fn, tp],
+    }
+)
+outcome_order = ["Summited", "Did not summit"]
+confusion_base = alt.Chart(confusion).encode(
+    x=alt.X("Predicted outcome:N", sort=outcome_order, axis=alt.Axis(labelAngle=0)),
+    y=alt.Y("Actual outcome:N", sort=outcome_order),
+)
+confusion_cells = confusion_base.mark_rect().encode(
+    color=alt.Color("Members:Q", scale=alt.Scale(scheme="purples"), legend=None),
+    tooltip=["Actual outcome", "Predicted outcome", alt.Tooltip("Members:Q", format=",")],
+)
+confusion_text = confusion_base.mark_text(fontSize=16).encode(
+    text=alt.Text("Members:Q", format=","),
+    color=alt.condition(
+        alt.datum.Members > confusion["Members"].max() / 2,
+        alt.value("white"),
+        alt.value("black"),
+    ),
+)
+(confusion_cells + confusion_text).properties(width=300, height=220)
+```
 
 ## Discussion
 
