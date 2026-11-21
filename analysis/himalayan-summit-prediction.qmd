@@ -659,11 +659,42 @@ confusion_text = confusion_base.mark_text(fontSize=16).encode(
 
 ## Discussion
 
+We asked whether information known before an expedition begins can predict whether an individual member will reach the summit. The answer is a qualified yes. Our final gradient boosting model reached a balanced accuracy of `{python} test_str` on expeditions it had never seen, well above the `{python} dummy_str` of a baseline that ignores the predictors. Pre-expedition information therefore carries real signal about summit success. At the same time, the model misclassified a substantial share of members in both outcome groups (@fig-confusion), so this information is far from enough to determine who will reach the top.
+
+In the context of Himalayan climbing, this is a reasonable result. Whether a climber summits also depends on weather, route conditions, illness, fitness on the day and decisions made high on the mountain, none of which can be known in advance or are recorded in our data. What the model does show is which planning factors are most strongly linked to success. Hired status and expedition oxygen use stood out in the exploratory analysis (@fig-categorical), and expedition role and oxygen use had the largest logistic regression coefficients (@tbl-coefs). Gradient boosting improved on logistic regression (@tbl-model-comparison), which suggests that the effects of these factors depend on each other and on the peak, rather than adding up independently.
+
+Many of these patterns are what we expected. Hired staff and expeditions that use supplemental oxygen are central to commercial climbing on the highest peaks, and we expected them to be linked to success. The higher success rates of younger members and of more recent years in our exploratory analysis (@fig-numeric) are consistent with earlier work on Everest, which found that success rates roughly doubled between 1990-2005 and 2006-2019 and that success declines with age after about 40 (Huey et al. 2020). The same study found nearly identical success rates for women and men on Everest, which agrees with our finding that sex adds little to the prediction once the other features are taken into account. We were more surprised that peak height on its own separated the outcomes so poorly, and that peaks of almost the same height had very different success rates (@fig-peaks). This points to route difficulty and the level of commercial support on each peak as important factors that our features capture only indirectly.
+
+Our findings have several limitations:
+
+- **Expedition oxygen use.** The expedition-level oxygen indicator may be partly recorded after the climb. Without it, the cross-validation balanced accuracy of logistic regression fell from `{python} lr_str` to `{python} lr_no_oxygen_str`, so our reported performance is likely somewhat optimistic.
+- **Expedition role.** The role partly records whether a member planned to go to the summit at all. For example, no base camp manager in the training set summited. Part of the model's performance comes from recognising these roles rather than from predicting the outcome of an attempt.
+- **Data coverage.** The data end in spring 2019, before the COVID-19 pandemic and before recent changes in commercial climbing. The records are also compiled from reports by expeditions, so some details may be missing or inaccurate.
+- **Unbalanced peaks.** A few popular peaks make up most of the data, with Everest alone accounting for about a third of members. The model may perform worse on rarely climbed peaks, which we did not evaluate separately.
+- **Missing climber information.** Important factors such as previous climbing experience and fitness are not in the data. Citizenship may act as a rough stand-in for experience, wealth or access to guided expeditions, so its coefficients should not be read as an effect of nationality itself.
+
+If developed further, a model like this could help climbers and expedition organisers set realistic expectations and see which planning choices are linked to better outcomes. It should not be used to judge individual climbers, and certainly not to decide who receives a climbing permit. Its predictions are uncertain for any single person, and features such as citizenship and sex could lead to unfair decisions if used in that way.
+
+This analysis leads to several further questions. Would adding peak identity or route, or each climber's previous expeditions, improve predictions substantially? How well does the model perform when it is restricted to members who intended to reach the summit, which would remove the shortcut provided by roles such as base camp manager? Does performance differ between popular and rarely climbed peaks? Finally, the same approach could be used to study an outcome that matters even more for safety: the risk of death or serious injury.
+
+```{python}
+#| include: false
+# The Summary at the top of the report is written by hand because it comes
+# before the code that computes the results. Stop rendering if the results
+# change so that the Summary is updated to match.
+assert len(himalaya) == 59904 and himalaya["expedition_id"].nunique() == 8420
+assert f"{test_score:.2f}" == "0.71"
+assert f"{lr_score:.2f}" == "0.68" and f"{lr_no_oxygen_score:.2f}" == "0.65"
+assert hgb_score > lr_score
+```
+
 ## References
 
 Harris, C. R., Millman, K. J., van der Walt, S. J., et al. (2020). Array programming with NumPy. Nature, 585, 357-362. https://doi.org/10.1038/s41586-020-2649-2
 
 Hawley, E. and Salisbury, R. (2020). The Himalayan Database. https://www.himalayandatabase.com/
+
+Huey, R. B., Carroll, C., Salisbury, R., and Wang, J.-L. (2020). Mountaineers on Mount Everest: Effects of age, sex, experience, and crowding on rates of success and death. PLOS ONE, 15(8), e0236919. https://doi.org/10.1371/journal.pone.0236919
 
 Pedregosa, F., Varoquaux, G., Gramfort, A., et al. (2011). Scikit-learn: Machine learning in Python. Journal of Machine Learning Research, 12, 2825-2830. https://jmlr.org/papers/v12/pedregosa11a.html
 
