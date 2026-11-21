@@ -132,5 +132,53 @@ details.
 
 ### Laith Saeed
 
-*To be added by Laith.*
+**Tools and models**
+
+- Claude Code (Anthropic), used in the terminal (command-line version), with
+  the Claude Opus 5.5 model (`claude-opus-5-5`).
+
+**What it was used for**
+
+- *Understanding the project:* comparing our repository with the course's
+  example project, summarising the Milestone 1 instructions, and checking
+  which requirements were still missing.
+- *Tutoring:* explaining how Quarto documents run Python code, how to run the
+  report chunk by chunk in Positron, what each code chunk in the report does,
+  and how GitHub issues, branches and pull requests fit together.
+- *Reviewing teammates' work:* rendering the report from the modelling
+  branches to check that it ran without errors before I reviewed and merged
+  PRs #11, #13, #15 and #17, and pointing out wording that breaks the
+  milestone writing rules.
+- *Proofreading and formatting:* fixing spelling, spacing and formatting
+  errors in the team contract, and rewording the sections I asked to change.
+  I reviewed every change before submitting the contract.
+- *README:* drafting the structure and factual sections of the README (setup
+  and render commands, dependencies, licenses), and correcting the grammar of
+  the Summary and AI use statement I wrote.
+
+**Actions the tool took on GitHub**
+
+None. I opened all of my issues (#24 to #27) and reviewed, approved and
+merged all pull requests myself. Claude Code only ran read-only git commands
+on my computer (such as `git status`, `git log` and `git fetch`), read public
+pages of our repository, and once made a temporary local copy of the
+repository to test that the report renders.
+
+I reviewed all AI-assisted work, and I am able to explain it.
+
+**Instructions given to the tool**
+
+I did not use a project instruction file. I set up local Claude Code settings
+on my computer (not committed) that block it from running any git command
+that changes the repository and from using the GitHub command line tool.
+
+**Example prompts**
+
+- "I need your help to not only make sure our project is good to submit but
+  also to explain the various code chunks to me."
+- "Go through the contract fixing any spacing or typos you see please."
+- "I am giving you permission to run git commands to view only. I don't want
+  you making any commits, deleting any branches etc."
+- "Take a look at the README.md. Please don't nitpick, just ensure it's
+  grammatically accurate and call out major issues."
 
