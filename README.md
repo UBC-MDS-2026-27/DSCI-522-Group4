@@ -12,6 +12,8 @@ This project asks whether information known before a Himalayan expedition sets o
 
 Our final gradient boosting model reached a balanced accuracy of 0.71 on the test set. In cross-validation, logistic regression reached 0.68 (0.65 without the expedition oxygen indicator), and both models clearly outperformed a dummy baseline that always predicts the most frequent outcome (0.50).
 
+These results suggest that planning choices such as hired support and oxygen use carry real information about who reaches the summit, but much of the outcome depends on conditions that cannot be known in advance, so a model like this is better suited to setting realistic expectations than to judging individual climbers.
+
 One important limitation is that the expedition oxygen indicator may be partly recorded after the climb, which would make our results somewhat optimistic. When we removed it, logistic regression's balanced accuracy dropped from 0.68 to 0.65.
 
 ## Report
@@ -73,6 +75,13 @@ request.
 ## AI use statement
 
 Our team used Claude Code (Anthropic), running the Claude Opus 5.5 and Claude Sonnet 5.5 models, for troubleshooting, tutoring, drafting code and text, and proofreading and formatting. All AI-assisted work was reviewed by team members. Please see the [`AI_USAGE.md`](AI_USAGE.md) for a full breakdown of how AI aided in the preparation of this project. 
+
+Example prompts:
+
+- "Review my initial draft for the code of conduct and suggest changes" (with my draft attached)
+- "Brief outline on how to draft a CONTRIBUTING.md." / "Brief outline on how to draft a LICENSE.md, what are the key points to keep in mind."
+- "Help me organise my data tasks: download the members, expeditions and peaks CSVs, join them, drop the leaky columns, filter to 1990 onward, and do a grouped 70/30 train/test split by expedition."
+- "Grammar check. Flag inconsistent punctuation"
 
 ## License
 
