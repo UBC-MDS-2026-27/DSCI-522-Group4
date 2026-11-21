@@ -7,9 +7,7 @@ writes their own section and updates it as the project evolves. Members who
 did not use generative AI for a milestone state that in their section.
 
 All team members are responsible for the correctness and quality of the work
-in this repository, including any part produced with AI assistance. All issues
-and pull requests were opened by team members, and all pull requests were
-reviewed and merged by team members.
+in this repository, including any part produced with AI assistance.
 
 ## Milestone 1
 
