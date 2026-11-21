@@ -286,7 +286,230 @@ peak_overall = alt.Chart(pd.DataFrame({"rate": [overall_rate]})).mark_rule(
 
 ### Modelling
 
+We used twelve predictors: five numeric features (year, age, team size, number of hired staff and peak height), four categorical features (season, sex, citizenship and expedition role) and three binary features (whether the member was hired staff, whether they climbed solo and whether the expedition used supplemental oxygen). The expedition identifier and peak name were not used as predictors.
+
+All preprocessing was done inside a scikit-learn (Pedregosa et al. 2011) pipeline, so that during cross-validation each step was fitted only on the training folds and nothing was learned from the fold being scored. Numeric features were imputed with the median, because age is missing for about 3% of training members and its distribution is slightly right-skewed, and then standardised so that their scales are comparable. Missing citizenship and expedition role values were replaced with an "Unknown" level. Citizenship has close to 200 levels and expedition role more than 250, most of them very rare. Rather than choosing the levels to keep by hand, we one-hot encoded these features and grouped every level seen fewer than 100 times in the training data into a single "infrequent" level. This keeps the common countries and roles while preventing the model from fitting noise in levels with only a handful of members. The binary features were encoded as a single indicator each.
+
+Because members of the same expedition share conditions that strongly affect their outcomes, we used grouped 5-fold cross-validation (GroupKFold) with the expedition as the group, for the same reason that we split the training and test sets by expedition. Every model was evaluated with balanced accuracy, as justified in the exploratory analysis. Because the expedition oxygen indicator may be partly recorded after the climb, we also refitted the logistic regression without it, to measure how much the model relies on this feature.
+
+```{python}
+from sklearn.compose import make_column_transformer
+from sklearn.impute import SimpleImputer
+from sklearn.model_selection import GroupKFold
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
+NUMERIC = ["year", "age", "team_size", "hired_staff", "peak_height_m"]
+CATEGORICAL = ["season", "sex", "citizenship", "expedition_role"]
+BINARY = ["hired", "solo", "expedition_oxygen"]
+MIN_CATEGORY_COUNT = 100
+
+X_train = train_df[NUMERIC + CATEGORICAL + BINARY]
+y_train = train_df["success"]
+groups_train = train_df["expedition_id"]
+cv = GroupKFold(n_splits=5)
+
+
+def make_preprocessor(binary=BINARY):
+    """Build the preprocessing step. `binary` lets us drop a binary feature."""
+    return make_column_transformer(
+        (make_pipeline(SimpleImputer(strategy="median"), StandardScaler()), NUMERIC),
+        (
+            make_pipeline(
+                SimpleImputer(strategy="constant", fill_value="Unknown"),
+                OneHotEncoder(
+                    handle_unknown="infrequent_if_exist",
+                    min_frequency=MIN_CATEGORY_COUNT,
+                    sparse_output=False,
+                ),
+            ),
+            CATEGORICAL,
+        ),
+        (OneHotEncoder(drop="if_binary", sparse_output=False), binary),
+    )
+```
+
+As a baseline, we used a dummy classifier that ignores the predictors and always predicts the most common outcome in the training folds. Any useful model should do clearly better than this baseline.
+
+```{python}
+from sklearn.dummy import DummyClassifier
+from sklearn.model_selection import cross_validate
+
+dummy_cv = cross_validate(
+    make_pipeline(make_preprocessor(), DummyClassifier()),
+    X_train,
+    y_train,
+    groups=groups_train,
+    cv=cv,
+    scoring="balanced_accuracy",
+)
+dummy_score = dummy_cv["test_score"].mean()
+```
+
+Our first model was logistic regression. It is a natural starting point for a binary outcome: it is fast to fit, and its coefficients show which features are linked to a higher or lower chance of summiting, which matters for a question about planning decisions. Its main hyperparameter, C, controls the strength of regularisation, with smaller values shrinking the coefficients more strongly towards zero. We tuned C over six values from 0.001 to 100 on a logarithmic grid, using grouped cross-validation on the training set.
+
+```{python}
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import GridSearchCV
+
+C_GRID = np.logspace(-3, 2, 6)
+
+
+def tune_logistic_regression(features, binary):
+    search = GridSearchCV(
+        make_pipeline(make_preprocessor(binary), LogisticRegression(max_iter=2000)),
+        {"logisticregression__C": C_GRID},
+        cv=cv,
+        scoring="balanced_accuracy",
+        n_jobs=-1,
+    )
+    search.fit(train_df[features], y_train, groups=groups_train)
+    return search
+
+
+lr_search = tune_logistic_regression(NUMERIC + CATEGORICAL + BINARY, BINARY)
+lr_score = lr_search.best_score_
+best_c = lr_search.best_params_["logisticregression__C"]
+
+lr_scores = pd.DataFrame(
+    {
+        "C": lr_search.cv_results_["param_logisticregression__C"].astype(float),
+        "score": lr_search.cv_results_["mean_test_score"],
+        "sd": lr_search.cv_results_["std_test_score"],
+    }
+)
+smallest_good_c = lr_scores.loc[lr_scores["score"] >= lr_score - 0.005, "C"].min()
+
+dummy_str = f"{dummy_score:.2f}"
+lr_str = f"{lr_score:.3f}"
+best_c_str = f"{best_c:g}"
+smallest_good_c_str = f"{smallest_good_c:g}"
+```
+
+@fig-lr-tuning shows the cross-validation score for each value of C. The best value was C = `{python} best_c_str`, with a mean balanced accuracy of `{python} lr_str`, compared with `{python} dummy_str` for the dummy baseline. The score is almost flat from C = `{python} smallest_good_c_str` upwards (within 0.005 of the best score), so the model is not sensitive to the exact choice of C as long as the regularisation is not too strong.
+
+```{python}
+#| label: fig-lr-tuning
+#| fig-cap: "Mean cross-validation balanced accuracy of logistic regression for each value of the regularisation hyperparameter C. The shaded band is plus or minus one standard deviation across the five folds. The dashed line is the dummy baseline."
+lr_band = alt.Chart(lr_scores).transform_calculate(
+    lower="datum.score - datum.sd", upper="datum.score + datum.sd"
+).mark_area(opacity=0.2, color="#7570b3").encode(
+    x=alt.X("C:Q", scale=alt.Scale(type="log")),
+    y="lower:Q",
+    y2="upper:Q",
+)
+lr_line = alt.Chart(lr_scores).mark_line(point=True, color="#7570b3").encode(
+    x=alt.X(
+        "C:Q",
+        title="Regularisation hyperparameter C (log scale)",
+        scale=alt.Scale(type="log"),
+    ),
+    y=alt.Y(
+        "score:Q",
+        title="Mean CV balanced accuracy",
+        scale=alt.Scale(domain=[0.45, 0.75]),
+    ),
+    tooltip=[alt.Tooltip("C:Q", format="g"), alt.Tooltip("score:Q", format=".3f")],
+)
+dummy_rule = alt.Chart(pd.DataFrame({"score": [dummy_score]})).mark_rule(
+    strokeDash=[4, 4], color="black"
+).encode(y="score:Q")
+
+(lr_band + lr_line + dummy_rule).properties(width=450, height=250)
+```
+
 ## Results
+
+### What the logistic regression learned
+
+```{python}
+FEATURE_TITLES = {
+    "year": "Year",
+    "age": "Age",
+    "team_size": "Team size",
+    "hired_staff": "Number of hired staff",
+    "peak_height_m": "Peak height",
+    "season": "Season",
+    "sex": "Sex",
+    "citizenship": "Citizenship",
+    "expedition_role": "Expedition role",
+    "hired": "Hired staff",
+    "solo": "Solo climb",
+    "expedition_oxygen": "Expedition used oxygen",
+}
+LEVEL_LABELS = {
+    "BC Manager": "base camp manager",
+    "H-A Worker": "high-altitude worker",
+    "H-A Assistant": "high-altitude assistant",
+    "Exp Doctor": "expedition doctor",
+    "Sirdar": "sirdar (head of the hired staff)",
+    "S Korea": "South Korea",
+    "S Africa": "South Africa",
+    "F": "female",
+    "M": "male",
+    "infrequent_sklearn": "other (rare levels)",
+}
+
+
+def readable_name(feature_name):
+    """Turn a name such as 'pipeline-2__season_Summer' into 'Season: Summer'."""
+    column_part = feature_name.split("__", 1)[1]
+    for column, title in FEATURE_TITLES.items():
+        if column_part in (column, f"{column}_True"):
+            return title
+        if column_part.startswith(f"{column}_"):
+            level = column_part[len(column) + 1:]
+            return f"{title}: {LEVEL_LABELS.get(level, level)}"
+    return column_part
+
+
+best_lr = lr_search.best_estimator_
+coefficients = pd.DataFrame(
+    {
+        "Feature": [readable_name(n) for n in best_lr[0].get_feature_names_out()],
+        "Coefficient": best_lr[-1].coef_[0],
+    }
+)
+coef_lookup = coefficients.set_index("Feature")["Coefficient"]
+top_coefficients = (
+    coefficients.reindex(coefficients["Coefficient"].abs().sort_values(ascending=False).index)
+    .head(10)
+    .assign(**{"Effect on chance of summiting": lambda d: np.where(d["Coefficient"] > 0, "Higher", "Lower")})
+)
+
+bc_coef_str = f"{coef_lookup['Expedition role: base camp manager']:.1f}"
+oxygen_coef_str = f"{coef_lookup['Expedition used oxygen']:.1f}"
+solo_coef_str = f"{coef_lookup['Solo climb']:.1f}"
+n_solo_str = f"{train_df['solo'].sum():,}"
+sex_gap_str = f"{abs(coef_lookup['Sex: male'] - coef_lookup['Sex: female']):.2f}"
+```
+
+@tbl-coefs lists the ten features with the largest coefficients in the best logistic regression model, fitted on the whole training set. Numeric features were standardised, so their coefficients describe the change in the log-odds of summiting for a one standard deviation increase. Each level of a categorical feature has its own coefficient, which is best read relative to the other levels of the same feature.
+
+```{python}
+#| label: tbl-coefs
+#| tbl-cap: "The ten largest logistic regression coefficients by absolute value. Positive coefficients are linked to a higher chance of reaching the summit and negative coefficients to a lower chance."
+top_coefficients.style.hide(axis="index").format({"Coefficient": "{:.2f}"})
+```
+
+The largest coefficient by far belongs to base camp managers (`{python} bc_coef_str`). None of the base camp managers in the training set reached the summit, which is expected because their job is to run base camp rather than to climb. This shows that the expedition role partly encodes whether a member intended to go to the summit at all. Expedition oxygen use has the largest positive coefficient (`{python} oxygen_coef_str`), in line with the exploratory analysis. Solo climbing also has a large positive coefficient (`{python} solo_coef_str`), but only `{python} n_solo_str` training members climbed solo, so this estimate is very uncertain. Leadership roles were linked to a higher chance of summiting than ordinary climbers, and climbing in summer to a lower chance than the other seasons. In contrast, the coefficients for female and male members differ by only `{python} sex_gap_str`, so once the other features are taken into account, sex adds little to the prediction, even though men summited somewhat more often overall (@fig-categorical).
+
+### The role of expedition oxygen use
+
+As noted in the exploratory analysis, the expedition-level oxygen indicator may be partly recorded after the climb, since an expedition that turned back early might never use the oxygen it planned to use. To see how much the model depends on it, we tuned a second logistic regression in the same way but without this feature.
+
+```{python}
+lr_no_oxygen_search = tune_logistic_regression(
+    NUMERIC + CATEGORICAL + ["hired", "solo"], ["hired", "solo"]
+)
+lr_no_oxygen_score = lr_no_oxygen_search.best_score_
+
+lr_no_oxygen_str = f"{lr_no_oxygen_score:.3f}"
+# Use the rounded scores so the drop matches the numbers shown in the text
+oxygen_drop_str = f"{round(lr_score, 3) - round(lr_no_oxygen_score, 3):.3f}"
+```
+
+Without expedition oxygen use, the best cross-validation balanced accuracy fell from `{python} lr_str` to `{python} lr_no_oxygen_str`, a drop of `{python} oxygen_drop_str`. The model therefore still predicts clearly better than the dummy baseline (`{python} dummy_str`) without this feature, but oxygen use accounts for a noticeable part of its performance. If the indicator does partly reflect what happened during the climb, the scores of the models that use it are somewhat optimistic. We keep the feature in the main models because planned oxygen use is genuinely known before an expedition sets off, and we return to this limitation in the Discussion.
 
 ## Discussion
 
@@ -295,6 +518,8 @@ peak_overall = alt.Chart(pd.DataFrame({"rate": [overall_rate]})).mark_rule(
 Harris, C. R., Millman, K. J., van der Walt, S. J., et al. (2020). Array programming with NumPy. Nature, 585, 357-362. https://doi.org/10.1038/s41586-020-2649-2
 
 Hawley, E. and Salisbury, R. (2020). The Himalayan Database. https://www.himalayandatabase.com/
+
+Pedregosa, F., Varoquaux, G., Gramfort, A., et al. (2011). Scikit-learn: Machine learning in Python. Journal of Machine Learning Research, 12, 2825-2830. https://jmlr.org/papers/v12/pedregosa11a.html
 
 Preiss, D. (2018, April 14). One-third of Everest deaths are Sherpa climbers. NPR. https://www.npr.org/sections/parallels/2018/04/14/599417489/one-third-of-everest-deaths-are-sherpa-climbers
 
