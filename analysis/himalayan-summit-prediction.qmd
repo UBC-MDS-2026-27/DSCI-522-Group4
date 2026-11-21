@@ -346,6 +346,78 @@ dummy_cv = cross_validate(
 dummy_score = dummy_cv["test_score"].mean()
 ```
 
+Our first model was logistic regression. It is a natural starting point for a binary outcome: it is fast to fit, and its coefficients show which features are linked to a higher or lower chance of summiting, which matters for a question about planning decisions. Its main hyperparameter, C, controls the strength of regularisation, with smaller values shrinking the coefficients more strongly towards zero. We tuned C over six values from 0.001 to 100 on a logarithmic grid, using grouped cross-validation on the training set.
+
+```{python}
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import GridSearchCV
+
+C_GRID = np.logspace(-3, 2, 6)
+
+
+def tune_logistic_regression(features, binary):
+    search = GridSearchCV(
+        make_pipeline(make_preprocessor(binary), LogisticRegression(max_iter=2000)),
+        {"logisticregression__C": C_GRID},
+        cv=cv,
+        scoring="balanced_accuracy",
+        n_jobs=-1,
+    )
+    search.fit(train_df[features], y_train, groups=groups_train)
+    return search
+
+
+lr_search = tune_logistic_regression(NUMERIC + CATEGORICAL + BINARY, BINARY)
+lr_score = lr_search.best_score_
+best_c = lr_search.best_params_["logisticregression__C"]
+
+lr_scores = pd.DataFrame(
+    {
+        "C": lr_search.cv_results_["param_logisticregression__C"].astype(float),
+        "score": lr_search.cv_results_["mean_test_score"],
+        "sd": lr_search.cv_results_["std_test_score"],
+    }
+)
+smallest_good_c = lr_scores.loc[lr_scores["score"] >= lr_score - 0.005, "C"].min()
+
+dummy_str = f"{dummy_score:.2f}"
+lr_str = f"{lr_score:.3f}"
+best_c_str = f"{best_c:g}"
+smallest_good_c_str = f"{smallest_good_c:g}"
+```
+
+@fig-lr-tuning shows the cross-validation score for each value of C. The best value was C = `{python} best_c_str`, with a mean balanced accuracy of `{python} lr_str`, compared with `{python} dummy_str` for the dummy baseline. The score is almost flat from C = `{python} smallest_good_c_str` upwards (within 0.005 of the best score), so the model is not sensitive to the exact choice of C as long as the regularisation is not too strong.
+
+```{python}
+#| label: fig-lr-tuning
+#| fig-cap: "Mean cross-validation balanced accuracy of logistic regression for each value of the regularisation hyperparameter C. The shaded band is plus or minus one standard deviation across the five folds. The dashed line is the dummy baseline."
+lr_band = alt.Chart(lr_scores).transform_calculate(
+    lower="datum.score - datum.sd", upper="datum.score + datum.sd"
+).mark_area(opacity=0.2, color="#7570b3").encode(
+    x=alt.X("C:Q", scale=alt.Scale(type="log")),
+    y="lower:Q",
+    y2="upper:Q",
+)
+lr_line = alt.Chart(lr_scores).mark_line(point=True, color="#7570b3").encode(
+    x=alt.X(
+        "C:Q",
+        title="Regularisation hyperparameter C (log scale)",
+        scale=alt.Scale(type="log"),
+    ),
+    y=alt.Y(
+        "score:Q",
+        title="Mean CV balanced accuracy",
+        scale=alt.Scale(domain=[0.45, 0.75]),
+    ),
+    tooltip=[alt.Tooltip("C:Q", format="g"), alt.Tooltip("score:Q", format=".3f")],
+)
+dummy_rule = alt.Chart(pd.DataFrame({"score": [dummy_score]})).mark_rule(
+    strokeDash=[4, 4], color="black"
+).encode(y="score:Q")
+
+(lr_band + lr_line + dummy_rule).properties(width=450, height=250)
+```
+
 ## Results
 
 ## Discussion
