@@ -19,7 +19,55 @@ reviewed and merged by team members.
 
 ### Harshil Sharma
 
-*To be added by Harshil.*
+**Tools and models**
+
+- Claude Code (Anthropic), used through the Claude Code extension for VS Code.
+  It ran on the Claude Opus 5.5 model (`claude-opus-5-5`) for most of my work
+  and on Claude Sonnet 5.5 (`claude-sonnet-5-5`) for the last part.
+
+**What it was used for**
+
+- *Planning:* reading the DSCI 522 breast cancer predictor template (release
+  0.0.1) and suggesting how to split the work and structure the report.
+- *Introduction and exploratory data analysis (PR #6):* drafting the code and
+  text for the Introduction and the exploratory data analysis section,
+  computing the statistics quoted in the text, finding the references (Preiss
+  2018, Altair, NumPy), and rendering the report to check the figures.
+- *Review fixes:* checking Rohan's review comments on PR #6 against the data
+  and making the three fixes.
+- *Reviewing teammates' work:* checking PRs #3, #5, #7, #11, #13, #15 and #17
+  by rendering the report and comparing the text with the output, and
+  checking the references.
+- *Git and GitHub:* creating the branches and commits for my work, and
+  installing the GitHub command line tool.
+
+**Actions the tool took on GitHub using my account**
+
+I asked Claude Code to act on GitHub for me, and it did so using my account.
+It opened PR #6, posted my reply to Rohan's review on PR #6, merged PR #6 after
+Rohan approved it, and submitted my approval of PR #3. It also opened issues
+#18 to #22, submitted my reviews on PRs #11, #13, #15 and #17, and opened the
+pull request that adds this section. I asked for each of these actions and
+checked the results. Some of these actions, such as merging PR #6 and
+submitting my reviews, do not follow the rule in our CONTRIBUTING guidelines
+that issues, pull requests and reviews must be opened, written and approved by
+a person. I am disclosing this here so that the record is accurate.
+
+I reviewed all AI-assisted code and text, and I am able to explain it.
+
+**Instructions given to the tool**
+
+I did not use a project instruction file.
+
+**Example prompts**
+
+- "Go through the example repo and tell me how we should proceed as a group of
+  four."
+- "I am taking part B, so I'll also write the Introduction. Let's get started."
+- "Check the comment Rohan left on the PR."
+- "Make the changes and reply to Rohan."
+- "Check that everything Rohan asked me to review is correct, then I'll review
+  it."
 
 
 ### Evan Pai
