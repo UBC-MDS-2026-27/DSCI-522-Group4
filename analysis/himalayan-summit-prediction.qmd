@@ -286,6 +286,49 @@ peak_overall = alt.Chart(pd.DataFrame({"rate": [overall_rate]})).mark_rule(
 
 ### Modelling
 
+We used twelve predictors: five numeric features (year, age, team size, number of hired staff and peak height), four categorical features (season, sex, citizenship and expedition role) and three binary features (whether the member was hired staff, whether they climbed solo and whether the expedition used supplemental oxygen). The expedition identifier and peak name were not used as predictors.
+
+All preprocessing was done inside a scikit-learn (Pedregosa et al. 2011) pipeline, so that during cross-validation each step was fitted only on the training folds and nothing was learned from the fold being scored. Numeric features were imputed with the median, because age is missing for about 3% of training members and its distribution is slightly right-skewed, and then standardised so that their scales are comparable. Missing citizenship and expedition role values were replaced with an "Unknown" level. Citizenship has close to 200 levels and expedition role more than 250, most of them very rare. Rather than choosing the levels to keep by hand, we one-hot encoded these features and grouped every level seen fewer than 100 times in the training data into a single "infrequent" level. This keeps the common countries and roles while preventing the model from fitting noise in levels with only a handful of members. The binary features were encoded as a single indicator each.
+
+Because members of the same expedition share conditions that strongly affect their outcomes, we used grouped 5-fold cross-validation (GroupKFold) with the expedition as the group, for the same reason that we split the training and test sets by expedition. Every model was evaluated with balanced accuracy, as justified in the exploratory analysis.
+
+```{python}
+from sklearn.compose import make_column_transformer
+from sklearn.impute import SimpleImputer
+from sklearn.model_selection import GroupKFold
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
+NUMERIC = ["year", "age", "team_size", "hired_staff", "peak_height_m"]
+CATEGORICAL = ["season", "sex", "citizenship", "expedition_role"]
+BINARY = ["hired", "solo", "expedition_oxygen"]
+MIN_CATEGORY_COUNT = 100
+
+X_train = train_df[NUMERIC + CATEGORICAL + BINARY]
+y_train = train_df["success"]
+groups_train = train_df["expedition_id"]
+cv = GroupKFold(n_splits=5)
+
+
+def make_preprocessor(binary=BINARY):
+    """Build the preprocessing step. `binary` lets us drop a binary feature."""
+    return make_column_transformer(
+        (make_pipeline(SimpleImputer(strategy="median"), StandardScaler()), NUMERIC),
+        (
+            make_pipeline(
+                SimpleImputer(strategy="constant", fill_value="Unknown"),
+                OneHotEncoder(
+                    handle_unknown="infrequent_if_exist",
+                    min_frequency=MIN_CATEGORY_COUNT,
+                    sparse_output=False,
+                ),
+            ),
+            CATEGORICAL,
+        ),
+        (OneHotEncoder(drop="if_binary", sparse_output=False), binary),
+    )
+```
+
 ## Results
 
 ## Discussion
@@ -295,6 +338,8 @@ peak_overall = alt.Chart(pd.DataFrame({"rate": [overall_rate]})).mark_rule(
 Harris, C. R., Millman, K. J., van der Walt, S. J., et al. (2020). Array programming with NumPy. Nature, 585, 357-362. https://doi.org/10.1038/s41586-020-2649-2
 
 Hawley, E. and Salisbury, R. (2020). The Himalayan Database. https://www.himalayandatabase.com/
+
+Pedregosa, F., Varoquaux, G., Gramfort, A., et al. (2011). Scikit-learn: Machine learning in Python. Journal of Machine Learning Research, 12, 2825-2830. https://jmlr.org/papers/v12/pedregosa11a.html
 
 Preiss, D. (2018, April 14). One-third of Everest deaths are Sherpa climbers. NPR. https://www.npr.org/sections/parallels/2018/04/14/599417489/one-third-of-everest-deaths-are-sherpa-climbers
 
