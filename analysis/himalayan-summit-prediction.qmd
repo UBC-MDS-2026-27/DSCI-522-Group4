@@ -494,6 +494,22 @@ top_coefficients.style.hide(axis="index").format({"Coefficient": "{:.2f}"})
 
 The largest coefficient by far belongs to base camp managers (`{python} bc_coef_str`). None of the base camp managers in the training set reached the summit, which is expected because their job is to run base camp rather than to climb. This shows that the expedition role partly encodes whether a member intended to go to the summit at all. Expedition oxygen use has the largest positive coefficient (`{python} oxygen_coef_str`), in line with the exploratory analysis. Solo climbing also has a large positive coefficient (`{python} solo_coef_str`), but only `{python} n_solo_str` training members climbed solo, so this estimate is very uncertain. Leadership roles were linked to a higher chance of summiting than ordinary climbers, and climbing in summer to a lower chance than the other seasons. In contrast, the coefficients for female and male members differ by only `{python} sex_gap_str`, so once the other features are taken into account, sex adds little to the prediction, even though men summited somewhat more often overall (@fig-categorical).
 
+### The role of expedition oxygen use
+
+As noted in the exploratory analysis, the expedition-level oxygen indicator may be partly recorded after the climb, since an expedition that turned back early might never use the oxygen it planned to use. To see how much the model depends on it, we tuned a second logistic regression in the same way but without this feature.
+
+```{python}
+lr_no_oxygen_search = tune_logistic_regression(
+    NUMERIC + CATEGORICAL + ["hired", "solo"], ["hired", "solo"]
+)
+lr_no_oxygen_score = lr_no_oxygen_search.best_score_
+
+lr_no_oxygen_str = f"{lr_no_oxygen_score:.3f}"
+oxygen_drop_str = f"{lr_score - lr_no_oxygen_score:.3f}"
+```
+
+Without expedition oxygen use, the best cross-validation balanced accuracy fell from `{python} lr_str` to `{python} lr_no_oxygen_str`, a drop of `{python} oxygen_drop_str`. The model therefore still predicts clearly better than the dummy baseline (`{python} dummy_str`) without this feature, but oxygen use accounts for a noticeable part of its performance. If the indicator does partly reflect what happened during the climb, the scores of the models that use it are somewhat optimistic. We keep the feature in the main models because planned oxygen use is genuinely known before an expedition sets off, and we return to this limitation in the Discussion.
+
 ## Discussion
 
 ## References
