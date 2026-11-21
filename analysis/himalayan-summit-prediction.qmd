@@ -418,6 +418,45 @@ dummy_rule = alt.Chart(pd.DataFrame({"score": [dummy_score]})).mark_rule(
 (lr_band + lr_line + dummy_rule).properties(width=450, height=250)
 ```
 
+Logistic regression assumes that each feature changes the log-odds of summiting by a fixed amount, regardless of the other features. The exploratory analysis suggested that this may be too simple: for example, the benefit of hired support or oxygen may depend on how high the peak is. Our second model was therefore a histogram-based gradient boosting classifier, which builds an ensemble of decision trees, each correcting the errors of the previous ones. Tree ensembles can capture non-linear effects and interactions between features without us having to specify them, and the histogram-based implementation is fast on a data set of this size. It used the same preprocessing pipeline as logistic regression.
+
+We tuned three hyperparameters: the maximum depth of each tree, which controls how complex the interactions can be; the number of boosting iterations, that is, the number of trees; and the learning rate, which controls how much each tree contributes. Because there are three hyperparameters, we used a randomised search over 20 combinations rather than a full grid, again with grouped 5-fold cross-validation and balanced accuracy.
+
+```{python}
+from scipy.stats import loguniform, randint
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.model_selection import RandomizedSearchCV
+
+hgb_search = RandomizedSearchCV(
+    make_pipeline(make_preprocessor(), HistGradientBoostingClassifier(random_state=522)),
+    {
+        "histgradientboostingclassifier__max_depth": [3, 5, 8, None],
+        "histgradientboostingclassifier__max_iter": randint(100, 500),
+        "histgradientboostingclassifier__learning_rate": loguniform(0.01, 0.3),
+    },
+    n_iter=20,
+    cv=cv,
+    scoring="balanced_accuracy",
+    n_jobs=-1,
+    random_state=522,
+)
+hgb_search.fit(X_train, y_train, groups=groups_train)
+hgb_score = hgb_search.best_score_
+
+hgb_best = hgb_search.best_params_
+hgb_depth = hgb_best["histgradientboostingclassifier__max_depth"]
+hgb_depth_str = (
+    "no limit on tree depth (each tree is still limited to 31 leaves by default)"
+    if hgb_depth is None
+    else f"a maximum tree depth of {hgb_depth}"
+)
+hgb_iter_str = str(hgb_best["histgradientboostingclassifier__max_iter"])
+hgb_lr_str = f"{hgb_best['histgradientboostingclassifier__learning_rate']:.3f}"
+hgb_str = f"{hgb_score:.3f}"
+```
+
+The best combination used `{python} hgb_depth_str`, `{python} hgb_iter_str` trees and a learning rate of `{python} hgb_lr_str`, with a mean cross-validation balanced accuracy of `{python} hgb_str`.
+
 ## Results
 
 ### What the logistic regression learned
