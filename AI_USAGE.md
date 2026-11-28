@@ -31,30 +31,42 @@ in this repository, including any part produced with AI assistance.
 
 ### Harshil Sharma
 
-**Tool:** Claude Code (Opus 5.5 and Sonnet 5.5). No instruction files were used.
+**Tools and models**
 
-**Used for:**
+- Claude Code (Anthropic), used through the Claude Code extension for VS Code,
+  with the Claude Opus 5.5 model (`claude-opus-5-5`) and, for part of
+  Milestone 1, Claude Sonnet 5.5 (`claude-sonnet-5-5`).
 
-- Understanding the Milestone 1 requirements and planning how to structure the
-  analysis, using the course's example project as a reference
-- Generating initial versions of the Introduction and the exploratory data
-  analysis code and text, then refining the Altair figures (consistent colours,
-  readable axes, legend placement and layout). I reviewed the rendered report
-  and checked the figures before committing.
-- Checking that the statistics quoted in the text matched the training data and
-  that the cited sources exist and support the claims
-- Proofreading the rendered report and teammates' sections for errors and
-  inconsistencies
+**What it was used for**
 
-**Example prompts:**
+- *Understanding the requirements:* summarising the milestone instructions,
+  comparing our repository with the course's example project, and checking
+  what was still missing before each submission.
+- *Analysis and report:* generating initial versions of the Introduction and
+  the exploratory data analysis code and text, and refining the figures. I
+  reviewed the rendered report and checked every figure before committing.
+- *Proofreading:* checking the rendered report and teammates' sections for
+  errors and inconsistencies.
+- *Troubleshooting:* diagnosing environment problems, such as an outdated
+  version of uv that could not install the pinned Python version.
+- *Git and GitHub:* drafting issue text, pull request descriptions and
+  commands. In Milestone 1, it also opened some issues and pull requests and
+  submitted some reviews from my account at my request; since then I have
+  done all GitHub actions myself.
 
-- *Planning:* "Go through the example project and outline how we should
-  structure our analysis and split the work."
-- *EDA:* "Build exploratory figures on the training set and explain what each
-  one shows about summit success."
-- *Visualisation:* "Fix the year axis formatting and move the legend so it is
-  fully visible."
-- *Proofreading:* "Check my text for errors and remove long dashes."
+I reviewed all AI-assisted code and text, and I am able to explain it.
+
+**Instructions given to the tool**
+
+I did not use a project instruction file.
+
+**Example prompts** (paraphrased)
+
+- "Compare our repository with the example project and outline how we should
+  structure the analysis and split the work."
+- "Build exploratory figures on the training set and explain what each one
+  shows about summit success."
+- "Fix the year axis formatting and move the legend so it is fully visible."
 
 ### Evan Pai
 
